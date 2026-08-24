@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Links - Mapas Técnicos</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0e0f14;
+    --surface: #16181f;
+    --surface2: #1e2029;
+    --border: #2a2d3a;
+    --accent: #4ade80;
+    --accent2: #22d3ee;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --error: #f87171;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0;
+    background-image: 
+      linear-gradient(rgba(74,222,128,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(74,222,128,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .container {
+    max-width: 820px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    margin-bottom: 48px;
+    border-left: 3px solid var(--accent);
+    padding-left: 20px;
+  }
+
+  header .tag {
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--text);
+  }
+
+  header p {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 20px;
+    transition: border-color 0.2s;
+  }
+
+  .step:hover { border-color: #3a3d4a; }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .step-num {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: #0e0f14;
+    flex-shrink: 0;
+  }
+
+  .step-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text);
+  }
+
+  .step-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 16px;
+    resize: vertical;
+    min-height: 200px;
+    outline: none;
+    transition: border-color 0.2s;
+    line-height: 1.8;
+  }
+
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #0e0f14;
+    border: none;
+    border-radius: 8px;
+    padding: 14px 28px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    margin-top: 16px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .stat {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+  }
+
+  .stat-num.green { color: var(--accent); }
+  .stat-num.red { color: var(--error); }
+  .stat-num.blue { color: var(--accent2); }
+
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .no-encontrados {
+    margin-top: 16px;
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.2);
+    border-radius: 8px;
+    padding: 16px;
+    display: none;
+  }
+
+  .no-encontrados h4 {
+    color: var(--error);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .no-encontrados ul {
+    list-style: none;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .no-encontrados ul li::before {
+    content: "✗ ";
+    color: var(--error);
+  }
+
+  .resultado { display: none; }
+
+  .instruccion {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    border-left: 3px solid var(--accent2);
+  }
+
+  .instruccion code {
+    color: var(--accent);
+    background: rgba(74,222,128,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="container">
+
+  <header>
+    <div class="tag">// herramienta diaria</div>
+    <h1>Generador de<br>Links de Mapas</h1>
+    <p>Pega la lista de archivos HTML del día y descarga el Excel con los links listos.</p>
+  </header>
+
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div>
+        <div class="step-title">Pega la lista de archivos HTML</div>
+        <div class="step-desc">Ejecuta <code style="color:var(--accent)">dir /b *.html</code> en CMD y pega el resultado aquí</div>
+      </div>
+    </div>
+    <div class="instruccion">
+      Abre la carpeta de los HTMLs → escribe <code>cmd</code> en la barra de dirección → ejecuta <code>dir /b *.html</code> → copia y pega aquí
+    </div>
+    <textarea id="inputArchivos" placeholder="mapa_ACOSTA_LEIVA_DUVAN_ESTEBAN.html&#10;mapa_GOMEZ_SILVA_CRISTIAN_DAVID.html&#10;mapa_RODRIGUEZ_HERNANDEZ_JEFFERSON_DAVID.html&#10;..."></textarea>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div>
+        <div class="step-title">Generar y descargar Excel</div>
+        <div class="step-desc">Se cruza automáticamente con la base de técnicos</div>
+      </div>
+    </div>
+    <button class="btn" onclick="generarExcel()">
+      ⬇ Generar Excel con Links
+    </button>
+  </div>
+
+  <div class="resultado" id="resultado">
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num" style="background: var(--accent2)">✓</div>
+        <div>
+          <div class="step-title">Resultado</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-num blue" id="statTotal">0</div>
+          <div class="stat-label">Archivos procesados</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num green" id="statEncontrados">0</div>
+          <div class="stat-label">Con link ✓</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num red" id="statSin">0</div>
+          <div class="stat-label">Sin coincidencia</div>
+        </div>
+      </div>
+      <div class="no-encontrados" id="noEncontrados">
+        <h4>Archivos sin técnico en la base:</h4>
+        <ul id="listaNoEncontrados"></ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// BASE DE DATOS DE TECNICOS
+const tecnicos = [
+  { cedula: "1000000001", nombre: "Tecnico Demo Uno" },
+  { cedula: "1000000002", nombre: "Tecnico Demo Dos" },
+  { cedula: "1000000003", nombre: "Tecnico Demo Tres" },
+  { cedula: "1000000004", nombre: "Tecnico Demo Cuatro" },
+  { cedula: "1000000005", nombre: "Tecnico Demo Cinco" },
+  { cedula: "1000000006", nombre: "Tecnico Demo Seis" },
+  { cedula: "1000000007", nombre: "Tecnico Demo Siete" },
+  { cedula: "1000000008", nombre: "Tecnico Demo Ocho" },
+  { cedula: "1000000009", nombre: "Tecnico Demo Nueve" },
+  { cedula: "1000000010", nombre: "Tecnico Demo Diez" },
+];
+
+// ⚙️ CONFIGURACIÓN — reemplaza con la URL de tu propio GitHub Pages
+const BASE_URL = "https://TU-USUARIO.github.io/TU-REPOSITORIO/";
+
+function normalizar(texto) {
+  return texto.toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9\s]/g, '')
+    .trim();
+}
+
+function buscarTecnico(nombreArchivo) {
+  // Extraer palabras del nombre del archivo (ignorar último segmento = código diario)
+  let partes = nombreArchivo.replace('mapa_', '').replace('.html', '').split('_');
+  // Si el último segmento tiene 6 caracteres o menos (código diario), ignorarlo
+  if (partes[partes.length - 1].length <= 6) partes = partes.slice(0, -1);
+  const palabrasArchivo = new Set(partes.map(normalizar));
+
+  let mejorMatch = null;
+  let mejorScore = 0;
+
+  for (const tec of tecnicos) {
+    const palabrasTec = new Set(normalizar(tec.nombre).split(' '));
+    const coincidencias = [...palabrasArchivo].filter(p => palabrasTec.has(p));
+    if (coincidencias.length > mejorScore) {
+      mejorScore = coincidencias.length;
+      mejorMatch = tec;
+    }
+  }
+
+  return mejorScore >= 2 ? mejorMatch : null;
+}
+
+function generarExcel() {
+  const input = document.getElementById('inputArchivos').value.trim();
+  if (!input) { alert('Por favor pega la lista de archivos HTML'); return; }
+
+  const archivos = input.split('\n').map(l => l.trim()).filter(l => l.endsWith('.html'));
+  if (!archivos.length) { alert('No se encontraron archivos .html en la lista'); return; }
+
+  const filas = [];
+  const noEncontrados = [];
+
+  for (const archivo of archivos) {
+    const tecnico = buscarTecnico(archivo);
+    const link = BASE_URL + archivo;
+    if (tecnico) {
+      filas.push({ CEDULA: tecnico.cedula, "APELLIDOS Y NOMBRES": tecnico.nombre, "ARCHIVO HTML": archivo, "LINK DIRECTO": link });
+    } else {
+      noEncontrados.push(archivo);
+      filas.push({ CEDULA: 'NO ENCONTRADO', "APELLIDOS Y NOMBRES": 'NO ENCONTRADO', "ARCHIVO HTML": archivo, "LINK DIRECTO": link });
+    }
+  }
+
+  // Crear Excel
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(filas);
+
+  ws['!cols'] = [{ wch: 15 }, { wch: 35 }, { wch: 45 }, { wch: 80 }];
+
+  XLSX.utils.book_append_sheet(wb, ws, "Mapas del Día");
+
+  const fecha = new Date().toLocaleDateString('es-CO').replace(/\//g, '-');
+  XLSX.writeFile(wb, `Links_Mapas_${fecha}.xlsx`);
+
+  // Mostrar resultado
+  document.getElementById('statTotal').textContent = archivos.length;
+  document.getElementById('statEncontrados').textContent = archivos.length - noEncontrados.length;
+  document.getElementById('statSin').textContent = noEncontrados.length;
+
+  const divNo = document.getElementById('noEncontrados');
+  const listaNo = document.getElementById('listaNoEncontrados');
+  if (noEncontrados.length > 0) {
+    listaNo.innerHTML = noEncontrados.map(a => `<li>${a}</li>`).join('');
+    divNo.style.display = 'block';
+  } else {
+    divNo.style.display = 'none';
+  }
+
+  document.getElementById('resultado').style.display = 'block';
+}
+</script>
+</body>
+</html>

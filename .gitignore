@@ -1,0 +1,29 @@
+# Copias de seguridad locales
+*.original.html
+*.portafolio-antes.html
+
+# Backups
+Backup_GeoTracker-Pro/
+backup/
+backups/
+
+# Credenciales y secretos
+.env
+*.env
+*.key
+*.pem
+secrets/
+credentials/
+
+# Archivos temporales
+*.tmp
+*.bak
+~*
+Thumbs.db
+
+# Archivos generados
+Links_Mapas_*.xlsx
+
+# Automatización interna de empresa
+limpiar_duplicados_MAPAS.ps1
+*.original.ps1

@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GeoTracker-Pro — Mapas por Técnico</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #1e1e2e;
+    --accent: #00e5ff;
+    --accent2: #ff6b35;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --success: #00ff88;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  .container { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+
+  header { margin-bottom: 40px; border-bottom: 1px solid var(--border); padding-bottom: 28px; }
+  .badge { display: inline-block; background: rgba(0,229,255,0.1); border: 1px solid var(--accent); color: var(--accent); font-family: 'Space Mono', monospace; font-size: 11px; padding: 4px 12px; border-radius: 2px; letter-spacing: 2px; margin-bottom: 14px; text-transform: uppercase; }
+  h1 { font-size: clamp(26px, 5vw, 48px); font-weight: 800; line-height: 1.1; margin-bottom: 10px; background: linear-gradient(135deg, #e8e8f0 0%, #00e5ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  header p { color: var(--muted); font-size: 15px; max-width: 600px; }
+
+  /* UPLOAD */
+  .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 52px 40px; text-align: center; cursor: pointer; transition: all 0.3s; background: var(--surface); margin-bottom: 28px; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: rgba(0,229,255,0.03); }
+  .upload-icon { font-size: 44px; margin-bottom: 14px; }
+  .upload-zone h3 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+  .upload-zone p { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  input[type="file"] { display: none; }
+
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 6px; font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; border: none; letter-spacing: 1px; text-transform: uppercase; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #33eaff; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,229,255,0.3); }
+  .btn-secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .btn-secondary:hover { background: rgba(0,229,255,0.08); }
+
+  /* MAPPING PANEL */
+  .mapping-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 24px; display: none; }
+  .mapping-panel.visible { display: block; }
+  .mapping-panel h3 { font-size: 14px; font-weight: 600; color: var(--accent); font-family: 'Space Mono', monospace; letter-spacing: 1px; margin-bottom: 6px; }
+  .mapping-panel p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  /* AUTO DETECT BANNER */
+  .auto-banner { display: flex; align-items: center; gap: 12px; background: rgba(0,255,136,0.07); border: 1px solid rgba(0,255,136,0.25); border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
+  .auto-banner span { font-size: 22px; }
+  .auto-banner p { color: #a0f0c0; font-size: 13px; margin: 0; line-height: 1.5; }
+
+  .mapping-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .map-field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 6px; font-family: 'Space Mono', monospace; }
+  .map-field select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 6px; font-size: 14px; font-family: 'Syne', sans-serif; cursor: pointer; outline: none; transition: border-color 0.2s; }
+  .map-field select:focus { border-color: var(--accent); }
+
+  /* MODE SELECTOR */
+  .mode-selector { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .mode-btn { flex: 1; min-width: 200px; padding: 14px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s; text-align: left; }
+  .mode-btn.selected { border-color: var(--accent); background: rgba(0,229,255,0.06); }
+  .mode-btn h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
+  .mode-btn p { font-size: 12px; color: var(--muted); margin: 0; }
+  .mode-btn.selected h4 { color: var(--accent); }
+
+  /* PROGRESS */
+  .progress-bar { display: none; margin-bottom: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .progress-bar.visible { display: block; }
+  .prog-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-family: 'Space Mono', monospace; font-size: 13px; }
+  .prog-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .prog-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 3px; transition: width 0.4s ease; width: 0%; }
+
+  /* RESULTS */
+  .results-section { display: none; }
+  .results-section.visible { display: block; }
+  .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px; }
+  .results-header h2 { font-size: 22px; font-weight: 700; }
+  .stats-row { display: flex; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 20px; text-align: center; flex: 1; min-width: 100px; }
+  .stat-num { font-size: 28px; font-weight: 800; color: var(--accent); font-family: 'Space Mono', monospace; line-height: 1; margin-bottom: 4px; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  .search-box { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 13px 18px; border-radius: 8px; font-size: 14px; font-family: 'Syne', sans-serif; outline: none; margin-bottom: 18px; transition: border-color 0.2s; }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--muted); }
+
+  /* TECH CARDS */
+  .tech-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 14px; }
+  .tech-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; transition: all 0.2s; position: relative; overflow: hidden; }
+  .tech-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--accent), var(--accent2)); opacity: 0; transition: opacity 0.2s; }
+  .tech-card:hover { border-color: rgba(0,229,255,0.3); transform: translateY(-2px); }
+  .tech-card:hover::before { opacity: 1; }
+  .tech-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .tech-name { font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+  .tech-file { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
+  .tech-badge { background: rgba(0,229,255,0.1); color: var(--accent); font-family: 'Space Mono', monospace; font-size: 12px; padding: 3px 10px; border-radius: 4px; white-space: nowrap; }
+  .link-box { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; margin: 10px 0 10px; }
+  .link-text { flex: 1; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .copy-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 4px; transition: all 0.2s; flex-shrink: 0; }
+  .copy-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+  .copy-btn.copied { color: var(--success); }
+  .open-btn { display: block; text-align: center; padding: 10px; background: rgba(0,229,255,0.08); border: 1px solid rgba(0,229,255,0.2); color: var(--accent); border-radius: 6px; font-family: 'Space Mono', monospace; font-size: 11px; text-decoration: none; letter-spacing: 1px; transition: all 0.2s; cursor: pointer; }
+  .open-btn:hover { background: rgba(0,229,255,0.15); }
+
+  /* EXPORT */
+  .export-panel { margin-top: 36px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .export-panel h3 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  .export-panel p { color: var(--muted); font-size: 13px; }
+  .export-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 1000; align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(4px); }
+  .modal-overlay.visible { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 960px; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-header { padding: 16px 22px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h3 { font-size: 16px; font-weight: 700; }
+  .modal-close { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; transition: color 0.2s; }
+  .modal-close:hover { color: var(--text); }
+  #mapFrame { flex: 1; border: none; width: 100%; min-height: 520px; }
+
+  /* FOTO FACHADA UPLOAD */
+  .foto-upload-zone { border: 2px dashed rgba(255,107,53,0.4); border-radius: 12px; padding: 28px 40px; text-align: center; cursor: pointer; transition: all 0.3s; background: rgba(255,107,53,0.04); margin-bottom: 28px; }
+  .foto-upload-zone:hover, .foto-upload-zone.dragover { border-color: var(--accent2); background: rgba(255,107,53,0.08); }
+  .foto-upload-zone h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--accent2); }
+  .foto-upload-zone p { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .foto-status { display: inline-flex; align-items: center; gap: 8px; background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.3); border-radius: 6px; padding: 8px 16px; font-family: 'Space Mono', monospace; font-size: 12px; color: var(--success); margin-top: 10px; }
+  .foto-status.empty { background: rgba(255,107,53,0.08); border-color: rgba(255,107,53,0.25); color: #ff9a6c; }
+
+  /* FOTOFACHADA EN EL MAPA */
+  .foto-fachada-panel { margin: 10px 12px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,107,53,0.4); display: none; }
+  .foto-fachada-panel.visible { display: block; }
+  .foto-fachada-header { background: rgba(255,107,53,0.2); color: #ff9a6c; font-size: 11px; font-weight: 700; padding: 5px 10px; font-family: monospace; display: flex; align-items: center; gap: 6px; }
+  .foto-fachada-img { width: 100%; display: block; max-height: 180px; object-fit: cover; cursor: pointer; }
+  .foto-fachada-expand { background: rgba(0,0,0,0.6); color: #fff; text-align: center; font-size: 10px; padding: 4px; font-family: monospace; cursor: pointer; }
+
+  /* LIGHTBOX */
+  .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 9999; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+  .lightbox.visible { display: flex; }
+  .lightbox img { max-width: 95vw; max-height: 85vh; border-radius: 8px; border: 2px solid var(--accent2); }
+  .lightbox-close { color: #fff; font-size: 28px; cursor: pointer; position: absolute; top: 16px; right: 24px; font-weight: 700; }
+  .lightbox-label { color: #ff9a6c; font-family: 'Space Mono', monospace; font-size: 12px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--success); color: #000; padding: 12px 20px; border-radius: 8px; font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; transform: translateY(80px); opacity: 0; transition: all 0.3s; z-index: 2000; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="badge">📍 GeoTracker Pro v5 — Offline + FotoFachada + Capa KML</div>
+    <h1>Mapas Automáticos<br>por Técnico</h1>
+    <p>Sube los Excel de tus técnicos — detecta automáticamente la columna de coordenadas y genera un mapa interactivo con todos los puntos para cada uno. Ahora con <strong style="color:var(--accent)">FotoFachada</strong>: sube un reporte de fotos de referencia y los técnicos verán la foto al abrir cada punto en el mapa.</p>
+  </header>
+
+  <!-- FOTO FACHADA UPLOAD -->
+  <div class="foto-upload-zone" id="fotoUploadZone">
+    <div style="font-size:32px;margin-bottom:10px">📸</div>
+    <h3>Reporte de Fotos de Referencia (Opcional)</h3>
+    <p>Sube un archivo Excel de operaciones — los técnicos verán la FotoFachada al abrir cada punto en el mapa</p>
+    <button class="btn" style="background:var(--accent2);color:#000;font-family:'Space Mono',monospace;font-size:12px;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;border:none;" onclick="document.getElementById('fotoInput').click()">📂 Seleccionar reporte</button>
+    <input type="file" id="fotoInput" accept=".xlsx,.xls" style="display:none">
+    <div id="fotoStatus" class="foto-status empty" style="margin-top:14px">⚠ Sin reporte cargado — no se mostrarán FotoFachadas</div>
+  </div>
+
+  <!-- UPLOAD -->
+
+  <div class="upload-zone" id="uploadZone">
+    <div class="upload-icon">📂</div>
+    <h3>Arrastra los archivos Excel aquí</h3>
+    <p>Un archivo por técnico · .xlsx / .xls · Hasta 100 archivos simultáneos</p>
+    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Seleccionar archivos</button>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
+  </div>
+
+  <!-- MAPPING PANEL -->
+  <div class="mapping-panel" id="mappingPanel">
+    <h3>// CONFIGURACIÓN</h3>
+    <p>Revisa que los campos estén correctos antes de generar los mapas.</p>
+
+    <div class="auto-banner" id="autoBanner" style="display:none">
+      <span>✅</span>
+      <p id="autoMsg">Se detectó automáticamente la columna de coordenadas.</p>
+    </div>
+
+    <!-- COORD MODE -->
+    <div style="margin-bottom:16px">
+      <div class="map-field" style="margin-bottom:12px">
+        <label>Formato de coordenadas</label>
+      </div>
+      <div class="mode-selector">
+        <div class="mode-btn selected" id="modeJunto" onclick="setMode('junto')">
+          <h4>📌 Una sola columna</h4>
+          <p>Ej: "4.58769 -74.18800" — lat y lng juntas separadas por espacio</p>
+        </div>
+        <div class="mode-btn" id="modeSep" onclick="setMode('separado')">
+          <h4>📊 Dos columnas separadas</h4>
+          <p>Una columna para latitud y otra para longitud</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- JUNTO MODE -->
+    <div id="configJunto">
+      <div class="mapping-grid">
+        <div class="map-field">
+          <label>Columna de coordenadas *</label>
+          <select id="colCoord"></select>
+        </div>
+        <div class="map-field">
+          <label>Columna nombre del punto</label>
+          <select id="colNameJ"><option value="">— Ninguna —</option></select>
+        </div>
+        <div class="map-field">
+          <label>Columna número de cuenta</label>
+          <select id="colCuentaJ"><option value="">— Ninguna —</option></select>
+        </div>
+        <div class="map-field">
+          <label>Nombre técnico desde</label>
+          <select id="techFromJ" onchange="toggleTechColJ()">
+            <option value="filename">Nombre del archivo</option>
+            <option value="column">Columna del Excel</option>
+          </select>
+        </div>
+        <div class="map-field" id="techColWrapJ" style="display:none">
+          <label>Columna nombre técnico</label>
+          <select id="colTechJ"></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEPARADO MODE -->
+    <div id="configSep" style="display:none">
+      <div class="mapping-grid">
+        <div class="map-field">
+          <label>Columna Latitud *</label>
+          <select id="colLat"></select>
+        </div>
+        <div class="map-field">
+          <label>Columna Longitud *</label>
+          <select id="colLng"></select>
+        </div>
+        <div class="map-field">
+          <label>Columna nombre del punto</label>
+          <select id="colNameS"><option value="">— Ninguna —</option></select>
+        </div>
+        <div class="map-field">
+          <label>Columna número de cuenta</label>
+          <select id="colCuentaS"><option value="">— Ninguna —</option></select>
+        </div>
+        <div class="map-field">
+          <label>Nombre técnico desde</label>
+          <select id="techFromS" onchange="toggleTechColS()">
+            <option value="filename">Nombre del archivo</option>
+            <option value="column">Columna del Excel</option>
+          </select>
+        </div>
+        <div class="map-field" id="techColWrapS" style="display:none">
+          <label>Columna nombre técnico</label>
+          <select id="colTechS"></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- KML LAYER CONFIG -->
+    <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+      <h3 style="font-size:14px;font-weight:600;color:#a78bfa;font-family:'Space Mono',monospace;letter-spacing:1px;margin-bottom:6px">// CAPA DE REFERENCIA (OPCIONAL)</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Añade puntos críticos de movilidad, cámaras, zonas de riesgo u otros desde un archivo KML exportado de Google My Maps.</p>
+      <div style="background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:16px;margin-bottom:14px">
+        <div style="font-size:12px;color:#a78bfa;font-family:'Space Mono',monospace;font-weight:700;margin-bottom:10px">📥 CÓMO EXPORTAR EL KML:</div>
+        <ol style="color:#94a3b8;font-size:12px;padding-left:18px;line-height:2">
+          <li>Abre tu Google My Maps</li>
+          <li>Menú <strong style="color:#e2e8f0">⋮</strong> → <strong style="color:#e2e8f0">Exportar a KML/KMZ</strong></li>
+          <li>Marca <strong style="color:#e2e8f0">"Exportar como KML"</strong> (no KMZ)</li>
+          <li>Sube ese archivo .kml aquí abajo</li>
+        </ol>
+      </div>
+      <div id="kmlUploadZone" style="border:2px dashed rgba(124,58,237,0.35);border-radius:10px;padding:24px;text-align:center;cursor:pointer;background:rgba(124,58,237,0.04);transition:all 0.3s" onclick="document.getElementById('kmlInput').click()" ondragover="event.preventDefault();this.style.borderColor='#a78bfa'" ondragleave="this.style.borderColor='rgba(124,58,237,0.35)'" ondrop="handleKmlDrop(event)">
+        <div style="font-size:28px;margin-bottom:8px">🗺</div>
+        <div style="font-size:14px;font-weight:600;color:#a78bfa;margin-bottom:4px">Arrastrá o seleccioná el archivo .kml</div>
+        <div style="font-size:12px;color:var(--muted)">Exportado desde Google My Maps · máx. 10 MB</div>
+        <input type="file" id="kmlInput" accept=".kml,.kmz" style="display:none" onchange="handleKmlFile(this.files[0])">
+      </div>
+      <div id="kmlStatus" style="display:none;margin-top:10px;display:none;align-items:center;gap:10px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:6px;padding:10px 14px;font-family:'Space Mono',monospace;font-size:12px;color:#a78bfa"></div>
+    </div>
+
+    <button class="btn btn-primary" style="margin-top:20px" onclick="processAllFiles()">🚀 Generar todos los mapas</button>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-bar" id="progressBar">
+    <div class="prog-header">
+      <span id="progLabel">Procesando archivos...</span>
+      <span id="progPct" style="color:var(--accent);font-family:'Space Mono',monospace">0%</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-section" id="results">
+    <div class="results-header">
+      <h2>✅ Mapas generados</h2>
+      <button class="btn btn-secondary" onclick="resetAll()">↺ Nuevo lote</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-num" id="statTechs">0</div><div class="stat-label">Técnicos</div></div>
+      <div class="stat"><div class="stat-num" id="statPoints">0</div><div class="stat-label">Puntos totales</div></div>
+      <div class="stat"><div class="stat-num" id="statFiles">0</div><div class="stat-label">Archivos</div></div>
+    </div>
+    <input type="text" class="search-box" placeholder="🔍 Buscar técnico..." oninput="filterCards(this.value)">
+    <div class="tech-grid" id="techGrid"></div>
+    <div class="export-panel">
+      <div>
+        <h3>📦 Generar paquete de mapas</h3>
+        <p>Descarga un ZIP con todos los mapas + una página de links clickeables para enviar a cada técnico</p>
+      </div>
+      <div class="export-btns">
+        <button class="btn btn-secondary" onclick="exportCSV()">📊 CSV</button>
+        <button class="btn btn-primary" onclick="exportZip()">📦 Descargar ZIP con links</button>
+      </div>
+    </div>
+    <div style="margin-top:16px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);border-radius:10px;padding:18px 20px;">
+      <p style="font-size:13px;color:var(--muted);line-height:1.7;">
+        <span style="color:var(--accent);font-weight:700;">💡 ¿Cómo compartir los links?</span><br>
+        <b style="color:var(--text);">Opción 1 — ZIP:</b> Descarga el ZIP → súbelo a Google Drive / OneDrive → comparte el <b>index.html</b> como link público. Cada técnico solo da clic en su nombre.<br>
+        <b style="color:var(--text);">Opción 2 — Individual:</b> Usa <b>"⬇ Descargar mapa"</b> en cada tarjeta para bajar el HTML de ese técnico y enviárselo por WhatsApp como archivo adjunto. El técnico lo abre directo en su celular.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- MAP MODAL -->
+<div class="modal-overlay" id="mapModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Mapa del Técnico</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <iframe id="mapFrame" src="about:blank"></iframe>
+  </div>
+</div>
+
+<!-- LIGHTBOX FOTOFACHADA -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <span class="lightbox-close" onclick="closeLightbox()">✕</span>
+  <img id="lightboxImg" src="" alt="FotoFachada">
+  <div class="lightbox-label" id="lightboxLabel"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let uploadedFiles = [];
+let technicianData = [];
+let previewHeaders = [];
+let generatedMaps = {};
+let coordMode = 'junto'; // 'junto' | 'separado'
+let fotoFachadaMap = {}; // cuenta contrato → URL foto fachada
+let kmlDataUrl = null;   // KML embebido como data URL
+let kmlFileName = '';
+
+// ─── KML UPLOAD ───────────────────────────────────
+function handleKmlDrop(e) {
+  e.preventDefault();
+  document.getElementById('kmlUploadZone').style.borderColor = 'rgba(124,58,237,0.35)';
+  const file = e.dataTransfer.files[0];
+  if (file) handleKmlFile(file);
+}
+
+function handleKmlFile(file) {
+  if (!file) return;
+  if (!file.name.match(/\.kml$/i)) { showToast('⚠ Solo archivos .kml (no KMZ)'); return; }
+  if (file.size > 10 * 1024 * 1024) { showToast('⚠ El archivo es mayor a 10 MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    // Validar que sea KML
+    const txt = e.target.result;
+    if (!txt.includes('<kml') && !txt.includes('<KML')) {
+      showToast('⚠ El archivo no parece ser un KML válido');
+      return;
+    }
+    // Guardar como data URL para inyectarlo en cada mapa generado
+    kmlDataUrl = txt;
+    kmlFileName = file.name;
+
+    // Contar features
+    const placemarks = (txt.match(/<Placemark/g) || []).length;
+    const statusEl = document.getElementById('kmlStatus');
+    statusEl.style.display = 'flex';
+    statusEl.innerHTML = `✅ <strong style="color:#c4b5fd">${file.name}</strong> · ${placemarks} puntos de referencia cargados`;
+    document.getElementById('kmlUploadZone').style.borderColor = '#7c3aed';
+    document.getElementById('kmlUploadZone').style.background = 'rgba(124,58,237,0.08)';
+    showToast(`✓ KML cargado — ${placemarks} elementos`);
+  };
+  reader.readAsText(file);
+}
+
+// ─── FOTO FACHADA UPLOAD ───────────────────────
+const fotoZone = document.getElementById('fotoUploadZone');
+fotoZone.addEventListener('dragover', e => { e.preventDefault(); fotoZone.classList.add('dragover'); });
+fotoZone.addEventListener('dragleave', () => fotoZone.classList.remove('dragover'));
+fotoZone.addEventListener('drop', e => { e.preventDefault(); fotoZone.classList.remove('dragover'); handleFotoFile(e.dataTransfer.files[0]); });
+document.getElementById('fotoInput').addEventListener('change', e => handleFotoFile(e.target.files[0]));
+
+function handleFotoFile(file) {
+  if (!file || !file.name.match(/\.(xlsx|xls)$/i)) { showToast('⚠ Solo .xlsx / .xls'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (rows.length < 2) return;
+      const headers = rows[0].map(String);
+
+      // Columna A = "DC00 / SECTOR / 101141766 / 62520926"
+      // El NIC fijo de la casa es el 3er segmento (índice 2) separado por " / "
+      const colA = 0;
+      const colW = headers.findIndex((h,i) => i === 22) >= 0 ? 22
+        : headers.findIndex(h => h.toLowerCase().includes('foto fachada') && !h.includes('>'));
+
+      fotoFachadaMap = {};
+      let count = 0;
+      rows.slice(1).forEach(row => {
+        const textoA = String(row[colA] || '');
+        const fotoUrl = String(row[colW] || '').trim();
+        if (!fotoUrl || !fotoUrl.startsWith('http')) return;
+
+        // "DC00 / PERDOMO ALTO / 101141766 / 62520926"
+        //   0          1              2           3  ← este es el NIC
+        const partes = textoA.split('/').map(p => p.trim());
+        if (partes.length >= 4) {
+          const nic = partes[3].trim(); // último segmento = NIC fijo
+          if (nic && !fotoFachadaMap[nic]) {
+            fotoFachadaMap[nic] = fotoUrl;
+            count++;
+          }
+        }
+      });
+
+      const statusEl = document.getElementById('fotoStatus');
+      if (count > 0) {
+        statusEl.className = 'foto-status';
+        statusEl.textContent = `✅ ${count} FotoFachadas cargadas desde ${file.name}`;
+        showToast(`✓ ${count} fotos de fachada indexadas`);
+      } else {
+        statusEl.className = 'foto-status empty';
+        statusEl.textContent = '⚠ No se encontraron fotos — revisa el formato del archivo';
+      }
+    } catch(err) { console.warn(err); showToast('⚠ Error leyendo el archivo'); }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('visible');
+  document.getElementById('lightboxImg').src = '';
+}
+function openLightbox(url, label) {
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightboxLabel').textContent = label;
+  document.getElementById('lightbox').classList.add('visible');
+}
+
+
+// ─── DRAG & DROP ───────────────────────────────
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); handleFiles([...e.dataTransfer.files]); });
+document.getElementById('fileInput').addEventListener('change', e => handleFiles([...e.target.files]));
+
+// ─── MODE SELECTOR ─────────────────────────────
+function setMode(mode) {
+  coordMode = mode;
+  document.getElementById('modeJunto').classList.toggle('selected', mode === 'junto');
+  document.getElementById('modeSep').classList.toggle('selected', mode === 'separado');
+  document.getElementById('configJunto').style.display = mode === 'junto' ? 'block' : 'none';
+  document.getElementById('configSep').style.display = mode === 'separado' ? 'block' : 'none';
+}
+
+function toggleTechColJ() {
+  document.getElementById('techColWrapJ').style.display =
+    document.getElementById('techFromJ').value === 'column' ? '' : 'none';
+}
+function toggleTechColS() {
+  document.getElementById('techColWrapS').style.display =
+    document.getElementById('techFromS').value === 'column' ? '' : 'none';
+}
+
+// ─── FILE HANDLING ─────────────────────────────
+function handleFiles(files) {
+  const valid = files.filter(f => f.name.match(/\.(xlsx|xls)$/i));
+  if (!valid.length) { showToast('⚠ Solo .xlsx / .xls'); return; }
+  uploadedFiles = valid;
+  showToast(`✓ ${valid.length} archivo(s) cargado(s)`);
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'binary' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    if (!data.length) return;
+    previewHeaders = data[0].map(String);
+    autoDetectAndPopulate(previewHeaders, data);
+    document.getElementById('mappingPanel').classList.add('visible');
+  };
+  reader.readAsBinaryString(valid[0]);
+}
+
+// ─── AUTO DETECT ───────────────────────────────
+function autoDetectAndPopulate(headers, data) {
+  // Check for combined coordinate column
+  const coordKeywords = ['coordenada', 'coord', 'ubicacion', 'ubicación', 'gps', 'position'];
+  const coordIdx = headers.findIndex(h =>
+    coordKeywords.some(k => h.toLowerCase().includes(k))
+  );
+
+  // Check if a column has "lat lng" format by sampling data
+  let detectedJuntoIdx = -1;
+  if (coordIdx >= 0) {
+    detectedJuntoIdx = coordIdx;
+  } else {
+    // Try to find a column with combined lat/lng values
+    for (let ci = 0; ci < headers.length; ci++) {
+      const sample = data.slice(1, 4).map(r => String(r[ci] || ''));
+      const looksLikeCoord = sample.some(v => /^-?\d+\.\d+\s+-?\d+\.\d+/.test(v.trim()));
+      if (looksLikeCoord) { detectedJuntoIdx = ci; break; }
+    }
+  }
+
+  // Populate all selects
+  const allSelects = ['colCoord','colNameJ','colCuentaJ','colTechJ','colLat','colLng','colNameS','colCuentaS','colTechS'];
+  allSelects.forEach(id => {
+    const el = document.getElementById(id);
+    const hasNone = ['colNameJ','colCuentaJ','colTechJ','colNameS','colCuentaS','colTechS'].includes(id);
+    el.innerHTML = hasNone ? '<option value="">— Ninguna —</option>' : '';
+    headers.forEach((h, i) => {
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = h;
+      el.appendChild(opt);
+    });
+  });
+
+  if (detectedJuntoIdx >= 0) {
+    // Auto mode: junto
+    setMode('junto');
+    document.getElementById('colCoord').value = detectedJuntoIdx;
+
+    // Try to detect name column (DATOS_MYMAPS or similar)
+    const nameIdx = headers.findIndex(h => h.toLowerCase().includes('dato') || h.toLowerCase().includes('descripcion') || h.toLowerCase().includes('nombre'));
+    if (nameIdx >= 0) document.getElementById('colNameJ').value = nameIdx;
+
+    // Try to detect cuenta column — busca exactamente 'cuenta' primero, luego variantes
+    const cuentaIdx = headers.findIndex(h => h.toLowerCase() === 'cuenta')
+      ?? headers.findIndex(h => h.toLowerCase().includes('cuenta') || h.toLowerCase().includes('contrato') || h.toLowerCase().includes('nic'));
+    const cuentaIdxFinal = headers.findIndex(h => h.toLowerCase() === 'cuenta') >= 0
+      ? headers.findIndex(h => h.toLowerCase() === 'cuenta')
+      : headers.findIndex(h => h.toLowerCase().includes('cuenta') || h.toLowerCase().includes('contrato') || h.toLowerCase().includes('nic'));
+    if (cuentaIdxFinal >= 0) document.getElementById('colCuentaJ').value = cuentaIdxFinal;
+
+    // Try to detect tech name column
+    const techIdx = headers.findIndex(h => h.toLowerCase().includes('tecnico') || h.toLowerCase().includes('técnico'));
+    if (techIdx >= 0) {
+      document.getElementById('techFromJ').value = 'column';
+      document.getElementById('techColWrapJ').style.display = '';
+      document.getElementById('colTechJ').value = techIdx;
+    }
+
+    document.getElementById('autoBanner').style.display = 'flex';
+    document.getElementById('autoMsg').textContent =
+      `✅ Se detectó automáticamente: columna "${headers[detectedJuntoIdx]}" con formato lat/lng combinado.`;
+  } else {
+    // Separate columns mode
+    setMode('separado');
+    const guess = kws => headers.findIndex(h => kws.some(k => h.toLowerCase().includes(k)));
+    const li = guess(['lat','latitude','latitud']);
+    const lni = guess(['lng','lon','longitude','longitud']);
+    if (li >= 0) document.getElementById('colLat').value = li;
+    if (lni >= 0) document.getElementById('colLng').value = lni;
+    const cuentaIdxS = headers.findIndex(h => h.toLowerCase() === 'cuenta') >= 0
+      ? headers.findIndex(h => h.toLowerCase() === 'cuenta')
+      : headers.findIndex(h => h.toLowerCase().includes('cuenta') || h.toLowerCase().includes('contrato'));
+    if (cuentaIdxS >= 0) document.getElementById('colCuentaS').value = cuentaIdxS;
+  }
+}
+
+// ─── PROCESS ALL FILES ─────────────────────────
+async function processAllFiles() {
+  if (!uploadedFiles.length) return;
+
+  document.getElementById('mappingPanel').classList.remove('visible');
+  document.getElementById('progressBar').classList.add('visible');
+
+  technicianData = [];
+  generatedMaps = {};
+  const total = uploadedFiles.length;
+
+  for (let i = 0; i < total; i++) {
+    const file = uploadedFiles[i];
+    const pct = Math.round(((i + 1) / total) * 100);
+    document.getElementById('progFill').style.width = pct + '%';
+    document.getElementById('progPct').textContent = pct + '%';
+    document.getElementById('progLabel').textContent = `Procesando (${i+1}/${total}): ${file.name}`;
+
+    await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: 'binary' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+          if (rows.length < 2) { resolve(); return; }
+
+          const dataRows = rows.slice(1).filter(r => r.length > 0);
+          const points = [];
+          let techName = '';
+
+          if (coordMode === 'junto') {
+            const colCoord = +document.getElementById('colCoord').value;
+            const colNameVal = document.getElementById('colNameJ').value;
+            const colName = colNameVal !== '' ? +colNameVal : null;
+            const colCuentaVal = document.getElementById('colCuentaJ').value;
+            const colCuenta = colCuentaVal !== '' ? +colCuentaVal : null;
+            const techFrom = document.getElementById('techFromJ').value;
+            const colTechVal = document.getElementById('colTechJ').value;
+            const colTech = colTechVal !== '' ? +colTechVal : null;
+
+            dataRows.forEach(row => {
+              const raw = String(row[colCoord] || '').trim();
+              // Split by space, handle multiple spaces
+              const parts = raw.split(/\s+/);
+              if (parts.length < 2) return;
+              const lat = parseFloat(parts[0]);
+              const lng = parseFloat(parts[1]);
+              if (isNaN(lat) || isNaN(lng)) return;
+
+              const name = colName !== null ? String(row[colName] || '') : '';
+              // Parse address from DATOS_MYMAPS: "62292922-101138938-DC00(...) - DIRECCION - NOMBRE"
+              let label = name;
+              if (name.includes(' - ')) {
+                const parts2 = name.split(' - ');
+                label = parts2[1] || name;
+              }
+
+              // NIC = columna B (CUENTA) — número fijo de la casa
+              const cuenta = colCuenta !== null ? String(row[colCuenta] || '') : '';
+              const nic = cuenta; // el match se hace directo por columna B
+              const fotoUrl = fotoFachadaMap[nic] || '';
+              const tipoOp = name.includes('RC00') ? 'RC00' : name.includes('DC00') ? 'DC00' : name.includes('ZVCL') ? 'ZVCL' : '';
+
+              if (!techName && techFrom === 'column' && colTech !== null) {
+                techName = String(row[colTech] || '');
+              }
+              points.push({ lat, lng, name: label, cuenta, nic, fotoUrl, tipoOp });
+            });
+
+            if (techFrom === 'filename' || !techName) {
+              techName = file.name.replace(/\.(xlsx|xls)$/i, '');
+            }
+
+          } else {
+            const colLat = +document.getElementById('colLat').value;
+            const colLng = +document.getElementById('colLng').value;
+            const colNameVal = document.getElementById('colNameS').value;
+            const colName = colNameVal !== '' ? +colNameVal : null;
+            const colCuentaVal = document.getElementById('colCuentaS').value;
+            const colCuenta = colCuentaVal !== '' ? +colCuentaVal : null;
+            const techFrom = document.getElementById('techFromS').value;
+            const colTechVal = document.getElementById('colTechS').value;
+            const colTech = colTechVal !== '' ? +colTechVal : null;
+
+            dataRows.forEach(row => {
+              const lat = parseFloat(row[colLat]);
+              const lng = parseFloat(row[colLng]);
+              if (isNaN(lat) || isNaN(lng)) return;
+              const name = colName !== null ? String(row[colName] || '') : '';
+              const cuenta = colCuenta !== null ? String(row[colCuenta] || '') : '';
+              const nic = cuenta;
+              const fotoUrl = fotoFachadaMap[nic] || '';
+              const tipoOp = name.includes('RC00') ? 'RC00' : name.includes('DC00') ? 'DC00' : name.includes('ZVCL') ? 'ZVCL' : '';
+              if (!techName && techFrom === 'column' && colTech !== null) {
+                techName = String(row[colTech] || '');
+              }
+              points.push({ lat, lng, name, cuenta, nic, fotoUrl, tipoOp });
+            });
+
+            if (techFrom === 'filename' || !techName) {
+              techName = file.name.replace(/\.(xlsx|xls)$/i, '');
+            }
+          }
+
+          if (points.length > 0) {
+            const mapHtml = buildMapHTML(techName, points, kmlDataUrl);
+            const mapBlob = new Blob([mapHtml], { type: 'text/html;charset=utf-8' });
+            const mapUrl = URL.createObjectURL(mapBlob);
+            const id = 'tech_' + i + '_' + Date.now();
+            generatedMaps[id] = { mapUrl, techName, points, fileName: file.name };
+            technicianData.push({ id, techName, points, fileName: file.name, mapUrl });
+          }
+        } catch(err) { console.warn(err); }
+        resolve();
+      };
+      reader.readAsBinaryString(file);
+    });
+
+    await new Promise(r => setTimeout(r, 20));
+  }
+
+  document.getElementById('progressBar').classList.remove('visible');
+  renderResults();
+}
+
+// ─── BUILD MAP HTML ────────────────────────────
+function buildMapHTML(techName, points, kmlDataUrl = null) {
+  // Build list items
+  const listItems = points.map((p, i) => {
+    const gmaps = `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`;
+    const waze = `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`;
+    const label = p.name || `Punto ${i+1}`;
+    const cuentaBadge = p.cuenta
+      ? `<span class="cuenta-badge">📋 ${p.cuenta}</span>`
+      : `<span class="cuenta-badge" style="opacity:0.4">Sin cuenta</span>`;
+
+    // Tipo operación badge
+    let tipoBadge = '';
+    if (p.tipoOp === 'RC00') tipoBadge = `<span class="tipo-badge rc">🔌 RECONEXIÓN</span>`;
+    else if (p.tipoOp === 'DC00') tipoBadge = `<span class="tipo-badge dc">✂ SUSPENSIÓN</span>`;
+    else if (p.tipoOp === 'ZVCL') tipoBadge = `<span class="tipo-badge zv">⚠ ZVCL</span>`;
+
+    // FotoFachada — mostrar en reconexiones, suspensiones y ZVCL que tengan foto
+    let fotoHtml = '';
+    if (p.fotoUrl && (p.tipoOp === 'RC00' || p.tipoOp === 'DC00' || p.tipoOp === 'ZVCL')) {
+      const fotoLabel = p.tipoOp === 'RC00' ? '📸 FOTO FACHADA — reconexión'
+                      : p.tipoOp === 'DC00' ? '📸 FOTO FACHADA — suspensión'
+                      : '📸 FOTO FACHADA — ZVCL';
+      fotoHtml = `<div class="foto-fachada-panel visible" id="foto${i}">
+        <div class="foto-fachada-header">${fotoLabel}</div>
+        <img class="foto-fachada-img" src="${p.fotoUrl}" alt="Foto Fachada" onclick="openLightbox('${p.fotoUrl}','${label}')">
+        <div class="foto-fachada-expand" onclick="openLightbox('${p.fotoUrl}','${label}')">🔍 Ver a pantalla completa</div>
+      </div>`;
+    }
+
+    return `<div class="item" id="item${i}" onclick="selectPoint(${i})">
+      <div class="num">${i+1}</div>
+      <div class="item-info">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:4px">${cuentaBadge}${tipoBadge}</div>
+        <div class="item-name">${label}</div>
+        <div class="item-coords">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>
+        ${fotoHtml}
+        <div class="item-btns">
+          <a href="${gmaps}" target="_blank" class="nav-btn g">🗺 Google Maps</a>
+          <a href="${waze}" target="_blank" class="nav-btn w">🚗 Waze</a>
+          <button class="btn-del" onclick="eliminarItem(event,${i})">✓ Listo</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const ptsJson = JSON.stringify(points);
+
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${techName}</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-omnivore/0.3.4/leaflet-omnivore.min.js" crossorigin="anonymous"><\/script>
+<script>
+// ── SERVICE WORKER: caché automático de tiles offline ──
+if ('serviceWorker' in navigator) {
+  const swCode = \`
+const CACHE = 'mapa-tiles-v1';
+const TILE_HOSTS = ['tile.openstreetmap.org'];
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => { e.waitUntil(clients.claim()); });
+self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+  const isTile = TILE_HOSTS.some(h => url.hostname.includes(h));
+  const isLeaflet = url.hostname.includes('cdnjs.cloudflare.com');
+  if (!isTile && !isLeaflet) return;
+  e.respondWith(
+    caches.open(CACHE).then(cache =>
+      cache.match(e.request).then(cached => {
+        if (cached) return cached;
+        return fetch(e.request).then(res => {
+          if (res.ok) cache.put(e.request, res.clone());
+          return res;
+        }).catch(() => cached || new Response('', {status: 503}));
+      })
+    )
+  );
+});
+\`;
+  const blob = new Blob([swCode], {type:'application/javascript'});
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl, {scope:'/'}).catch(()=>{});
+}
+<\/script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0f172a;color:#f1f5f9;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+#hdr{background:linear-gradient(135deg,#1e3a5f,#0f172a);border-bottom:3px solid #00e5ff;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px}
+#hdr h1{font-size:14px;font-weight:700;color:#00e5ff}
+#hdr p{font-size:11px;color:#94a3b8;margin-top:2px}
+.badge{background:rgba(0,229,255,0.15);color:#00e5ff;border:1px solid rgba(0,229,255,0.35);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+#main{display:flex;flex:1;overflow:hidden}
+#sidebar{width:300px;background:#1e293b;border-right:1px solid #0f172a;display:flex;flex-direction:column;flex-shrink:0;transition:width 0.28s cubic-bezier(.4,0,.2,1),height 0.28s cubic-bezier(.4,0,.2,1)}
+#sidebar.collapsed{width:0;overflow:hidden;border-right:none}
+#btn-toggle{background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:#00e5ff;border-radius:6px;padding:5px 10px;font-size:16px;cursor:pointer;line-height:1;flex-shrink:0;transition:background 0.2s}
+#btn-toggle:hover{background:rgba(0,229,255,0.25)}
+#btn-expand{display:none;position:absolute;top:12px;left:12px;z-index:1001;background:#00e5ff;color:#000;border:none;border-radius:6px;padding:8px 12px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5);line-height:1}
+#btn-expand.visible{display:block}
+#search-wrap{padding:10px 12px;background:#0f172a;border-bottom:1px solid #1e293b}
+#search{width:100%;background:#1e293b;border:1px solid #334155;color:#f1f5f9;padding:8px 12px;border-radius:6px;font-size:13px;outline:none}
+#search:focus{border-color:#00e5ff}
+#list{flex:1;overflow-y:auto}
+.item{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #0f172a;cursor:pointer;transition:background 0.15s}
+.item:hover,.item.active{background:#1e3a5f}
+.num{width:24px;height:24px;border-radius:50%;background:#00e5ff;color:#000;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.item.active .num{background:#ff6b35}
+.cuenta-badge{display:inline-block;background:rgba(255,107,53,0.2);color:#ff9a6c;border:1px solid rgba(255,107,53,0.4);border-radius:4px;font-size:10px;font-weight:700;padding:1px 7px;font-family:monospace}
+.tipo-badge{display:inline-block;border-radius:4px;font-size:10px;font-weight:700;padding:1px 7px;font-family:monospace}
+.tipo-badge.rc{background:rgba(0,255,136,0.15);color:#00ff88;border:1px solid rgba(0,255,136,0.35)}
+.tipo-badge.dc{background:rgba(255,50,50,0.15);color:#ff6b6b;border:1px solid rgba(255,50,50,0.35)}
+.tipo-badge.zv{background:rgba(255,200,0,0.15);color:#fbbf24;border:1px solid rgba(255,200,0,0.35)}
+.item-name{font-size:12px;color:#e2e8f0;line-height:1.4;margin-bottom:3px;font-weight:500}
+.item-coords{font-size:10px;color:#475569;font-family:monospace;margin-bottom:6px}
+.item-btns{display:flex;gap:6px}
+.btn-del{background:rgba(255,59,59,0.15);border:1px solid rgba(255,59,59,0.4);color:#ff6b6b;font-size:10px;font-weight:700;padding:4px 10px;border-radius:4px;cursor:pointer;font-family:monospace;transition:all 0.2s;margin-left:auto}
+.btn-del:hover{background:rgba(255,59,59,0.35);border-color:#ff3b3b}
+.item.done{opacity:0.35;background:#0a1628}
+.item.done .num{background:#334155;color:#64748b}
+.item.done .item-name{text-decoration:line-through;color:#64748b}
+.foto-fachada-panel{margin:6px 0 8px;border-radius:7px;overflow:hidden;border:1px solid rgba(255,107,53,0.45);display:none}
+.foto-fachada-panel.visible{display:block}
+.foto-fachada-header{background:rgba(255,107,53,0.25);color:#ff9a6c;font-size:10px;font-weight:700;padding:4px 8px;font-family:monospace;display:flex;align-items:center;gap:5px}
+.foto-fachada-img{width:100%;display:block;object-fit:contain;background:#000;cursor:pointer}
+.foto-fachada-expand{background:rgba(0,0,0,0.5);color:#ccc;text-align:center;font-size:10px;padding:3px;font-family:monospace;cursor:pointer}
+.foto-fachada-expand:hover{background:rgba(0,0,0,0.7);color:#fff}
+.lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.lightbox.visible{display:flex}
+.lightbox img{max-width:96vw;max-height:82vh;border-radius:8px;border:2px solid #ff6b35}
+.lightbox-close{color:#fff;font-size:30px;cursor:pointer;position:absolute;top:14px;right:20px;font-weight:700;line-height:1}
+.lightbox-label{color:#ff9a6c;font-family:monospace;font-size:11px;text-align:center;padding:0 16px}
+.nav-btn{font-size:10px;padding:4px 8px;border-radius:5px;text-decoration:none;font-weight:600;white-space:nowrap}
+.nav-btn.g{background:#4285F4;color:#fff}
+.nav-btn.w{background:#33CCFF;color:#000}
+#map-wrap{flex:1;position:relative}
+#leafmap{width:100%;height:100%}
+.btn-fitall{position:absolute;top:12px;right:12px;z-index:1000;background:#00e5ff;color:#000;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.btn-fitall:hover{background:#33eaff}
+.btn-geo{position:absolute;top:52px;right:12px;z-index:1000;background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.btn-geo:hover{background:#6d28d9}
+@keyframes gpulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.btn-geo.locating{animation:gpulse 1s infinite}
+.geo-bar{padding:7px 12px;background:rgba(124,58,237,0.12);border-bottom:1px solid rgba(124,58,237,0.25);font-size:11px;color:#a78bfa;font-family:monospace;display:none;align-items:center;gap:8px;flex-shrink:0}
+.geo-bar.on{display:flex}
+.geo-dot{width:7px;height:7px;border-radius:50%;background:#7c3aed;animation:gpulse 1.5s infinite;flex-shrink:0}
+.btn-sort{width:calc(100% - 24px);margin:0 12px 6px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.35);color:#a78bfa;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:monospace;display:none}
+.btn-sort:hover{background:rgba(124,58,237,0.3)}
+.dbadge{display:inline-block;border-radius:4px;font-size:10px;font-weight:700;padding:1px 6px;font-family:monospace;margin-left:4px}
+.dbadge.cerca{background:rgba(0,255,136,0.15);color:#00ff88;border:1px solid rgba(0,255,136,0.4)}
+.dbadge.medio{background:rgba(255,200,0,0.15);color:#fcd34d;border:1px solid rgba(255,200,0,0.4)}
+.dbadge.lejos{background:rgba(255,80,80,0.15);color:#f87171;border:1px solid rgba(255,80,80,0.4)}
+.geo-pin{width:16px;height:16px;border-radius:50%;background:#7c3aed;border:3px solid #fff;box-shadow:0 0 0 3px rgba(124,58,237,0.4)}
+.leaflet-popup-content-wrapper{background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:8px}
+.leaflet-popup-tip{background:#1e293b}
+.popup-title{font-weight:700;font-size:13px;margin-bottom:4px;color:#00e5ff}
+.popup-cuenta{background:rgba(255,107,53,0.2);color:#ff9a6c;border:1px solid rgba(255,107,53,0.4);border-radius:4px;font-size:11px;font-weight:700;padding:2px 8px;margin-bottom:6px;display:inline-block;font-family:monospace}
+.popup-coords{font-size:10px;color:#94a3b8;font-family:monospace;margin-bottom:8px}
+.popup-btns{display:flex;gap:6px}
+.popup-btns a{font-size:11px;padding:5px 10px;border-radius:5px;text-decoration:none;font-weight:700}
+.popup-btns .pg{background:#4285F4;color:#fff}
+.popup-btns .pw{background:#33CCFF;color:#000}
+.custom-marker{width:28px;height:28px;border-radius:50%;background:#00e5ff;color:#000;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5);cursor:pointer}
+.custom-marker.active{background:#ff6b35}
+.custom-marker.rc{background:#00ff88;color:#003a1a}
+.custom-marker.dc{background:#ff4444;color:#fff}
+.custom-marker.zv{background:#fbbf24;color:#3a2a00}
+.custom-marker.rc.active,.custom-marker.dc.active,.custom-marker.zv.active{background:#ff6b35}
+@media(max-width:640px){
+  #main{flex-direction:column}
+  #sidebar{width:100%;height:45vh;border-right:none;border-bottom:1px solid #0f172a}
+  #sidebar.collapsed{width:100%;height:0;border-bottom:none}
+  #map-wrap{height:55vh}
+  #sidebar.collapsed ~ #map-wrap{height:100%}
+}
+</style>
+</head>
+<body>
+<div id="hdr">
+  <div style="display:flex;align-items:center;gap:10px">
+    <button id="btn-toggle" onclick="toggleSidebar()" title="Mostrar/ocultar lista">☰</button>
+    <div>
+      <h1>📍 ${techName}</h1>
+      <p>Puntos del día</p>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+    <span class="badge">${points.length} pts</span>
+    <span id="prog-label" style="font-size:10px;color:#00ff88;font-family:monospace;font-weight:700">0/${points.length} listos</span>
+    <span id="cache-lbl" style="font-size:9px;color:#475569;font-family:monospace">⏳ offline...</span>
+    ${kmlDataUrl ? `<button id="btnKml" onclick="toggleKml()" style="margin-top:2px;background:rgba(220,38,38,0.25);border:1px solid rgba(220,38,38,0.5);color:#fca5a5;border-radius:5px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:monospace;transition:all 0.2s" title="Mostrar/ocultar puntos de referencia">🗺 Mapa de Riesgos</button>` : ''}
+  </div>
+</div>
+<div id="main">
+  <div id="sidebar">
+    <div id="search-wrap">
+      <input type="text" id="search" placeholder="🔍 Buscar dirección o cuenta..." oninput="filterList(this.value)">
+    </div>
+    <div class="geo-bar" id="geoBar"><div class="geo-dot"></div><span id="geoTxt">Ubicación activa</span></div>
+    <button class="btn-sort" id="btnSort" onclick="sortByDist()">📶 Ordenar por cercanía</button>
+    <div id="list">${listItems}</div>
+  </div>
+  <div id="map-wrap">
+    <div id="leafmap"></div>
+    <button id="btn-expand" onclick="toggleSidebar()" title="Mostrar lista">☰</button>
+    <button class="btn-fitall" onclick="fitAll()">🗺 Ver todos</button>
+    <button class="btn-geo" id="btnGeo" onclick="toggleGeo()">📍 Mi ubicación</button>
+    <div id="offline-banner" style="display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1002;background:#1e293b;border:1px solid #f59e0b;border-radius:8px;padding:8px 14px;align-items:center;gap:8px;max-width:90%;box-shadow:0 4px 16px rgba(0,0,0,.5)">
+      <span style="font-size:16px">📶</span>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#f59e0b;font-family:monospace">SIN SEÑAL — modo offline</div>
+        <div style="font-size:10px;color:#94a3b8">La lista y los botones de navegación funcionan con normalidad</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <span class="lightbox-close" onclick="closeLightbox()">✕</span>
+  <img id="lightboxImg" src="" alt="FotoFachada">
+  <div class="lightbox-label" id="lightboxLabel"></div>
+</div>
+
+<script>
+const pts = ${ptsJson};
+let activeIdx = -1;
+let markers = [];
+
+// ─── TOGGLE SIDEBAR ─────────────────────────────
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const expandBtn = document.getElementById('btn-expand');
+  const collapsed = sb.classList.toggle('collapsed');
+  expandBtn.classList.toggle('visible', collapsed);
+  setTimeout(() => map.invalidateSize(), 300);
+}
+
+// ─── PERSISTENCIA localStorage ──────────────────
+const STORAGE_KEY = 'progreso_' + location.pathname.split('/').pop().replace(/[^a-zA-Z0-9]/g,'_');
+
+function cargarProgreso() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
+}
+function guardarProgreso(listos) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(listos)); } catch(e) {}
+}
+function actualizarContador() {
+  const listos = cargarProgreso();
+  const total = pts.length;
+  const hechos = listos.length;
+  const el = document.getElementById('prog-label');
+  if (el) el.textContent = hechos + '/' + total + ' listos';
+}
+// ────────────────────────────────────────────────
+
+const map = L.map('leafmap', {zoomControl:true});
+
+// ── TILES con fallback offline ──
+const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap',
+  maxZoom: 19,
+  errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+}).addTo(map);
+
+// Banner offline
+const offlineBanner = document.getElementById('offline-banner');
+let offlineTiles = 0, totalTiles = 0;
+tileLayer.on('tileloadstart', () => totalTiles++);
+tileLayer.on('tileload', () => {
+  if (offlineBanner) offlineBanner.style.display = 'none';
+  const lbl = document.getElementById('cache-lbl');
+  if (lbl) { lbl.textContent = '✅ offline listo'; lbl.style.color = '#00ff88'; }
+});
+tileLayer.on('tileerror', () => {
+  offlineTiles++;
+  if (offlineBanner && offlineTiles > 2) {
+    offlineBanner.style.display = 'flex';
+  }
+});
+
+// Detector de conexión
+window.addEventListener('online', () => { if (offlineBanner) offlineBanner.style.display = 'none'; tileLayer.redraw(); });
+window.addEventListener('offline', () => { if (offlineBanner) offlineBanner.style.display = 'flex'; });
+
+function makeIcon(i, isActive) {
+  const tipo = pts[i].tipoOp || '';
+  const cls = tipo === 'RC00' ? 'rc' : tipo === 'DC00' ? 'dc' : tipo === 'ZVCL' ? 'zv' : '';
+  return L.divIcon({
+    className:'',
+    html:\`<div class="custom-marker\${cls?' '+cls:''}\${isActive?' active':''}">\${i+1}</div>\`,
+    iconSize:[28,28],iconAnchor:[14,14],popupAnchor:[0,-14]
+  });
+}
+
+pts.forEach((p,i) => {
+  const label = p.name || 'Punto '+(i+1);
+  const gmaps = \`https://www.google.com/maps/search/?api=1&query=\${p.lat},\${p.lng}\`;
+  const waze = \`https://waze.com/ul?ll=\${p.lat},\${p.lng}&navigate=yes\`;
+  const cuentaHtml = p.cuenta ? \`<div class="popup-cuenta">📋 \${p.cuenta}</div>\` : '';
+  let tipoHtml = '';
+  if (p.tipoOp === 'RC00') tipoHtml = \`<div style="display:inline-block;background:rgba(0,255,136,0.15);color:#00ff88;border:1px solid rgba(0,255,136,0.35);border-radius:4px;font-size:10px;font-weight:700;padding:1px 8px;font-family:monospace;margin-bottom:5px">🔌 RECONEXIÓN</div>\`;
+  else if (p.tipoOp === 'DC00') tipoHtml = \`<div style="display:inline-block;background:rgba(255,50,50,0.15);color:#ff6b6b;border:1px solid rgba(255,50,50,0.35);border-radius:4px;font-size:10px;font-weight:700;padding:1px 8px;font-family:monospace;margin-bottom:5px">✂ SUSPENSIÓN</div>\`;
+  else if (p.tipoOp === 'ZVCL') tipoHtml = \`<div style="display:inline-block;background:rgba(255,200,0,0.15);color:#fbbf24;border:1px solid rgba(255,200,0,0.35);border-radius:4px;font-size:10px;font-weight:700;padding:1px 8px;font-family:monospace;margin-bottom:5px">⚠ ZVCL</div>\`;
+  let fotoPopupHtml = '';
+  if (p.fotoUrl && p.tipoOp === 'RC00') {
+    fotoPopupHtml = \`<div style="margin:6px 0;border-radius:6px;overflow:hidden;border:1px solid rgba(255,107,53,0.4)">
+      <div style="background:rgba(255,107,53,0.2);color:#ff9a6c;font-size:10px;font-weight:700;padding:3px 8px;font-family:monospace">📸 FOTO FACHADA</div>
+      <img src="\${p.fotoUrl}" style="width:100%;object-fit:contain;background:#000;display:block;cursor:pointer" onclick="openLightbox('\${p.fotoUrl}','\${label.replace(/'/g,'')}')" alt="FotoFachada">
+      <div style="background:rgba(0,0,0,0.5);color:#ccc;text-align:center;font-size:10px;padding:3px;font-family:monospace;cursor:pointer" onclick="openLightbox('\${p.fotoUrl}','\${label.replace(/'/g,'')}')">🔍 Ver completa</div>
+    </div>\`;
+  }
+  const popup = \`<div class="popup-title">\${i+1}. \${label}</div>\${tipoHtml}\${cuentaHtml}<div class="popup-coords">\${p.lat.toFixed(5)}, \${p.lng.toFixed(5)}</div>\${fotoPopupHtml}<div class="popup-btns"><a href="\${gmaps}" target="_blank" class="pg">🗺 Google Maps</a><a href="\${waze}" target="_blank" class="pw">🚗 Waze</a></div>\`;
+  const marker = L.marker([p.lat,p.lng],{icon:makeIcon(i,false)}).addTo(map).bindPopup(popup,{maxWidth:260});
+  marker.on('click',()=>selectPoint(i));
+  markers.push(marker);
+});
+
+// ─── RESTAURAR PROGRESO AL CARGAR ──────────────
+(function restaurarProgreso() {
+  const listos = cargarProgreso();
+  if (!listos.length) { fitAll(); return; }
+  const sidebar = document.getElementById('list');
+  listos.forEach(i => {
+    const el = document.getElementById('item' + i);
+    if (!el) return;
+    el.classList.add('done');
+    if (markers[i]) map.removeLayer(markers[i]);
+    if (sidebar) sidebar.appendChild(el);
+  });
+  actualizarContador();
+  fitAll();
+})();
+
+function fitAll() {
+  const visibles = markers.filter(m => map.hasLayer(m));
+  const grupo = visibles.length ? visibles : markers;
+  if (!grupo.length) return;
+  map.fitBounds(L.featureGroup(grupo).getBounds().pad(0.12));
+}
+
+function eliminarItem(e, i) {
+  e.stopPropagation();
+  const el = document.getElementById('item' + i);
+  if (!el) return;
+  let listos = cargarProgreso();
+  if (el.classList.contains('done')) {
+    // Desmarcar: restaurar punto en el mapa
+    el.classList.remove('done');
+    if (markers[i]) {
+      markers[i].addTo(map);
+      markers[i].setIcon(makeIcon(i, false));
+    }
+    listos = listos.filter(x => x !== i);
+  } else {
+    // Marcar como listo: quitar punto del mapa
+    el.classList.add('done');
+    if (markers[i]) map.removeLayer(markers[i]);
+    // Mover al final de la lista
+    const sidebar = el.parentNode;
+    sidebar.appendChild(el);
+    if (!listos.includes(i)) listos.push(i);
+  }
+  guardarProgreso(listos);
+  actualizarContador();
+}
+
+function selectPoint(i) {
+  if(activeIdx>=0){
+    markers[activeIdx].setIcon(makeIcon(activeIdx,false));
+    const prev=document.getElementById('item'+activeIdx);
+    if(prev) prev.classList.remove('active');
+  }
+  activeIdx=i;
+  markers[i].setIcon(makeIcon(i,true));
+  markers[i].openPopup();
+  map.setView([pts[i].lat,pts[i].lng],17);
+  const el=document.getElementById('item'+i);
+  if(el){el.classList.add('active');el.scrollIntoView({behavior:'smooth',block:'nearest'});}
+}
+
+function filterList(q) {
+  q=q.toLowerCase();
+  document.querySelectorAll('.item').forEach(el=>{
+    el.style.display=el.innerText.toLowerCase().includes(q)?'':'none';
+  });
+}
+function openLightbox(url, label) {
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightboxLabel').textContent = label;
+  document.getElementById('lightbox').classList.add('visible');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('visible');
+  document.getElementById('lightboxImg').src = '';
+}
+
+// ── GEOLOCALIZACIÓN ──────────────────────────────
+let geoOn=false, watchId=null, pinMarker=null, pinCircle=null;
+
+function hav(a,b,c,d){
+  const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
+  const x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+function fmtD(k){return k<1?Math.round(k*1000)+' m':k.toFixed(1)+' km';}
+function cls(k){return k<0.3?'cerca':k<1.5?'medio':'lejos';}
+
+function updateDists(lat,lng){
+  pts.forEach((p,i)=>{
+    p._d=hav(lat,lng,p.lat,p.lng);
+    const el=document.getElementById('item'+i);
+    if(!el)return;
+    let b=el.querySelector('.dbadge');
+    if(!b){
+      b=document.createElement('span');
+      b.className='dbadge';
+      const c=el.querySelector('.item-coords');
+      if(c)c.after(b);
+    }
+    b.className='dbadge '+cls(p._d);
+    b.textContent='📏 '+fmtD(p._d);
+  });
+  document.getElementById('btnSort').style.display='block';
+  const near=pts.reduce((a,p,i)=>p._d<(a._d??9999)?{...p,i}:a,{});
+  document.getElementById('geoTxt').textContent='Más cercano: #'+(near.i+1)+' · '+fmtD(near._d);
+}
+
+function sortByDist(){
+  const list=document.getElementById('list');
+  const pend=[...list.querySelectorAll('.item:not(.done)')];
+  const done=[...list.querySelectorAll('.item.done')];
+  pend.sort((a,b)=>(pts[+a.id.replace('item','')]._d||999)-(pts[+b.id.replace('item','')]._d||999));
+  list.innerHTML='';
+  [...pend,...done].forEach(e=>list.appendChild(e));
+  list.scrollTop=0;
+}
+
+function toggleGeo(){
+  const btn=document.getElementById('btnGeo');
+  if(geoOn){
+    navigator.geolocation.clearWatch(watchId);
+    if(pinMarker){map.removeLayer(pinMarker);pinMarker=null;}
+    if(pinCircle){map.removeLayer(pinCircle);pinCircle=null;}
+    geoOn=false; watchId=null;
+    btn.textContent='📍 Mi ubicación';
+    btn.classList.remove('locating');
+    btn.style.background='#7c3aed';
+    document.getElementById('geoBar').classList.remove('on');
+    document.getElementById('btnSort').style.display='none';
+    document.querySelectorAll('.dbadge').forEach(b=>b.remove());
+    return;
+  }
+  if(!navigator.geolocation){alert('Tu navegador no soporta geolocalización.');return;}
+  btn.textContent='⏳ Buscando...';
+  btn.classList.add('locating');
+  watchId=navigator.geolocation.watchPosition(
+    pos=>{
+      const{latitude:lat,longitude:lng,accuracy:acc}=pos.coords;
+      geoOn=true;
+      btn.textContent='🟢 Activo — toca para apagar';
+      btn.classList.remove('locating');
+      btn.style.background='#059669';
+      document.getElementById('geoBar').classList.add('on');
+      const ico=L.divIcon({className:'',html:'<div class="geo-pin"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+      if(pinMarker){pinMarker.setLatLng([lat,lng]);pinCircle.setLatLng([lat,lng]).setRadius(acc);}
+      else{
+        pinMarker=L.marker([lat,lng],{icon:ico,zIndexOffset:2000}).addTo(map)
+          .bindPopup(\`<b style="color:#a78bfa">📍 Tu ubicación</b><br><span style="font-size:10px;color:#94a3b8">±\${Math.round(acc)}m de precisión</span>\`);
+        pinCircle=L.circle([lat,lng],{radius:acc,color:'#7c3aed',fillColor:'#7c3aed',fillOpacity:0.07,weight:1}).addTo(map);
+      }
+      updateDists(lat,lng);
+    },
+    err=>{
+      btn.textContent='📍 Mi ubicación';
+      btn.classList.remove('locating');
+      btn.style.background='#7c3aed';
+      geoOn=false;
+      const m={1:'Permiso denegado.',2:'No se pudo obtener ubicación.',3:'Tiempo agotado.'};
+      alert(m[err.code]||'Error de geolocalización.');
+    },
+    {enableHighAccuracy:true,maximumAge:8000,timeout:15000}
+  );
+}
+// ── CAPA KML DE REFERENCIA ───────────────────────
+${kmlDataUrl ? `
+const KML_TEXT = ${JSON.stringify(kmlDataUrl)};
+let kmlLayer = null;
+let kmlVisible = false;
+let kmlBlobUrl = null;
+
+// Iconos por tipo de punto KML
+const kmlIconMap = {
+  'camara':     { emoji: '📷', bg: '#f59e0b', color: '#000' },
+  'foto':       { emoji: '📷', bg: '#f59e0b', color: '#000' },
+  'multa':      { emoji: '🚨', bg: '#ef4444', color: '#fff' },
+  'riesgo':     { emoji: '⚠️', bg: '#dc2626', color: '#fff' },
+  'accidente':  { emoji: '🚧', bg: '#f97316', color: '#000' },
+  'medic':      { emoji: '🏥', bg: '#10b981', color: '#fff' },
+  'hospital':   { emoji: '🏥', bg: '#10b981', color: '#fff' },
+  'clinica':    { emoji: '🏥', bg: '#10b981', color: '#fff' },
+  'ips':        { emoji: '🏥', bg: '#10b981', color: '#fff' },
+  'mediport':   { emoji: '🏥', bg: '#10b981', color: '#fff' },  
+  'medicarte':  { emoji: '🏥', bg: '#10b981', color: '#fff' },  
+  'movilidad':  { emoji: '🚦', bg: '#3b82f6', color: '#fff' },
+  'default':    { emoji: '📌', bg: '#a78bfa', color: '#000' }
+};
+
+function getKmlIcon(name, desc) {
+  const lower = (name || '').toLowerCase() + ' ' + (desc || '').toLowerCase();
+  for (const [key, val] of Object.entries(kmlIconMap)) {
+    if (lower.includes(key)) return val;
+  }
+  return kmlIconMap.default;
+}
+
+function makeKmlIcon(name, desc) {
+  const cfg = getKmlIcon(name, desc);
+  return L.divIcon({
+    className: '',
+    html: \`<div style="width:28px;height:28px;border-radius:50%;background:\${cfg.bg};color:\${cfg.color};font-size:14px;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.8);box-shadow:0 2px 6px rgba(0,0,0,.6);cursor:pointer">\${cfg.emoji}</div>\`,
+    iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14]
+  });
+}
+
+function toggleKml() {
+  const btn = document.getElementById('btnKml');
+  if (!kmlVisible) {
+    if (!kmlLayer) {
+      // Primera vez: cargar y esperar a que omnivore termine de parsear
+      if (!kmlBlobUrl) {
+        const blob = new Blob([KML_TEXT], { type: 'application/vnd.google-earth.kml+xml' });
+        kmlBlobUrl = URL.createObjectURL(blob);
+      }
+      btn.textContent = '⏳ Cargando...';
+      kmlLayer = omnivore.kml(kmlBlobUrl, null, L.geoJson(null, {
+        pointToLayer: (feature, latlng) => {
+          const name = feature.properties?.name || '';
+          const desc = feature.properties?.description || '';
+          const marker = L.marker(latlng, { icon: makeKmlIcon(name, desc) });
+          marker.bindPopup(
+            \`<div style="font-weight:700;font-size:13px;color:#ef4444;margin-bottom:5px">⚠️ \${name || 'ZONA DE RIESGO'}</div>\` +
+            (desc ? \`<div style="font-size:11px;color:#cbd5e1;line-height:1.5">\${desc.replace(/<[^>]*>/g,'').substring(0,200)}</div>\` : ''),
+            { maxWidth: 240 }
+          );
+          return marker;
+        },
+        style: { color: '#dc2626', weight: 2.5, opacity: 0.9, fillColor: '#ef4444', fillOpacity: 0.25 }
+      }));
+      // Esperar evento 'ready' para agregar al mapa
+      kmlLayer.on('ready', function() {
+        kmlLayer.addTo(map);
+        kmlVisible = true;
+        btn.style.background = 'rgba(220,38,38,0.6)';
+        btn.style.color = '#fecaca';
+        btn.textContent = '🗺 Mapa de riesgos';
+      });
+      kmlLayer.on('error', function() {
+        btn.textContent = '⚠ Error KML';
+        console.warn('Error cargando KML');
+      });
+    } else {
+      // Ya cargado antes, solo mostrar
+      kmlLayer.addTo(map);
+      kmlVisible = true;
+      btn.style.background = 'rgba(220,38,38,0.6)';
+      btn.style.color = '#fecaca';
+      btn.textContent = '🗺 Mapa de riesgos';
+    }
+  } else {
+    if (kmlLayer) map.removeLayer(kmlLayer);
+    kmlVisible = false;
+    btn.style.background = 'rgba(220,38,38,0.25)';
+    btn.style.color = '#fca5a5';
+    btn.textContent = '🗺 Mapa de riesgos';
+  }
+}
+` : '// Sin capa KML configurada'}
+<\/script>
+</body>
+</html>`;
+}
+
+// ─── RENDER RESULTS ────────────────────────────
+function renderResults() {
+  const totalPts = technicianData.reduce((s,t) => s+t.points.length, 0);
+  document.getElementById('statTechs').textContent = technicianData.length;
+  document.getElementById('statPoints').textContent = totalPts;
+  document.getElementById('statFiles').textContent = uploadedFiles.length;
+
+  const grid = document.getElementById('techGrid');
+  grid.innerHTML = '';
+  technicianData.forEach(t => grid.appendChild(createCard(t)));
+  document.getElementById('results').classList.add('visible');
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+  showToast(`✓ ${technicianData.length} mapas generados`);
+}
+
+function createCard(t) {
+  const card = document.createElement('div');
+  card.className = 'tech-card';
+  card.dataset.name = t.techName.toLowerCase();
+  card.innerHTML = `
+    <div class="tech-top">
+      <div>
+        <div class="tech-name">${t.techName}</div>
+        <div class="tech-file">${t.fileName}</div>
+      </div>
+      <span class="tech-badge">${t.points.length} pts</span>
+    </div>
+    <button class="open-btn" onclick="openMap('${t.id}')">🗺 Vista previa del mapa</button>
+    <button class="open-btn" style="margin-top:6px;background:rgba(0,255,136,0.08);border-color:rgba(0,255,136,0.3);color:#00ff88;" onclick="downloadMap('${t.id}')">⬇ Descargar mapa de ${t.techName}</button>
+    <a class="open-btn" style="margin-top:6px;background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.35);color:#25d366;text-decoration:none;display:block;text-align:center;padding:10px;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:1px" href="#" onclick="event.preventDefault(); shareWhatsApp('${t.id}')">💬 Compartir por WhatsApp</a>
+  `;
+  return card;
+}
+
+function filterCards(q) {
+  document.querySelectorAll('.tech-card').forEach(c => {
+    c.style.display = c.dataset.name.includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// ─── MAP MODAL ─────────────────────────────────
+function openMap(id) {
+  const t = generatedMaps[id];
+  if (!t) return;
+  document.getElementById('modalTitle').textContent = '📍 ' + t.techName;
+  document.getElementById('mapFrame').src = t.mapUrl;
+  document.getElementById('mapModal').classList.add('visible');
+}
+function closeModal() {
+  document.getElementById('mapModal').classList.remove('visible');
+  document.getElementById('mapFrame').src = 'about:blank';
+}
+document.getElementById('mapModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('mapModal')) closeModal();
+});
+
+// copyMap removed — use downloadMap or exportZip instead
+
+function shareWhatsApp(id) {
+  const t = generatedMaps[id];
+  if (!t) return;
+  // Download the map file first, then open WhatsApp
+  downloadMap(id);
+  setTimeout(() => {
+    const msg = `📍 *Ruta de hoy — ${t.techName}*\n\n${t.points.length} puntos asignados.\n\nTe envío el archivo de tu mapa. Ábrelo en tu navegador para ver todos los puntos. 🗺`;
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+  }, 800);
+}
+
+// ─── EXPORT ────────────────────────────────────
+function exportCSV() {
+  const rows = ['Técnico,Archivo,Puntos'];
+  technicianData.forEach(t => rows.push(`"${t.techName}","${t.fileName}",${t.points.length}`));
+  dl('tecnicos.csv', rows.join('\n'), 'text/csv');
+  showToast('✓ CSV exportado');
+}
+
+// ─── DOWNLOAD SINGLE MAP ───────────────────────
+function codigoDelDia(nombreTecnico) {
+  const hoy = new Date();
+  const fechaNum = hoy.getFullYear() * 10000 + (hoy.getMonth() + 1) * 100 + hoy.getDate();
+  // Combinar fecha con nombre del técnico para que sea único por persona
+  let hashNombre = 0;
+  const nombre = (nombreTecnico || '').toUpperCase();
+  for (let i = 0; i < nombre.length; i++) {
+    hashNombre = (hashNombre * 31 + nombre.charCodeAt(i)) & 0xffffffff;
+  }
+  const secreto = Math.abs((fechaNum * 7691 + hashNombre * 3847291) & 0xffffffff);
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let codigo = '';
+  let n = secreto;
+  for (let i = 0; i < 6; i++) {
+    codigo += chars[n % chars.length];
+    n = Math.floor(n / chars.length) + (i * 1397) + (hashNombre % 97);
+  }
+  return codigo;
+}
+
+function safeFilename(name) {
+  return name.replace(/[^a-zA-Z0-9_\-áéíóúñÁÉÍÓÚÑ ]/g, '_').replace(/\s+/g, '_');
+}
+
+function downloadMap(id) {
+  const t = generatedMaps[id];
+  if (!t) return;
+  const mapHtml = buildMapHTML(t.techName, t.points, kmlDataUrl);
+  const blob = new Blob([mapHtml], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `mapa_${safeFilename(t.techName)}_${codigoDelDia(t.techName)}.html`;
+  a.click();
+  showToast(`⬇ Descargando mapa de ${t.techName}`);
+}
+
+// ─── EXPORT ZIP ────────────────────────────────
+async function exportZip() {
+  if (!technicianData.length) return;
+  showToast('⏳ Generando ZIP...');
+
+  const zip = new JSZip();
+  const mapFolder = zip.folder('mapas');
+
+  // Build index page
+  const fecha = new Date().toLocaleString('es-CO');
+  let rows = '';
+  technicianData.forEach((t, i) => {
+    const fname = `mapa_${safeFilename(t.techName)}_${codigoDelDia(t.techName)}.html`;
+    const mapHtml = buildMapHTML(t.techName, t.points, kmlDataUrl);
+    mapFolder.file(fname, mapHtml);
+    rows += `
+      <tr>
+        <td class="num">${i+1}</td>
+        <td class="name">${t.techName}</td>
+        <td class="pts"><span class="badge">${t.points.length} pts</span></td>
+        <td class="link"><a href="mapas/${fname}" target="_blank">📍 Abrir mi mapa</a></td>
+      </tr>`;
+  });
+
+  const indexHtml = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rutas del día — ${fecha}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #f1f5f9; min-height: 100vh; padding: 24px 16px; }
+  .header { text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #1e293b; }
+  .header h1 { font-size: clamp(22px,5vw,36px); font-weight: 800; color: #00e5ff; margin-bottom: 6px; }
+  .header p { color: #64748b; font-size: 14px; }
+  .table-wrap { max-width: 700px; margin: 0 auto; background: #1e293b; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: #0f172a; }
+  th { padding: 14px 18px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b; font-weight: 600; }
+  td { padding: 14px 18px; border-bottom: 1px solid #0f172a; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(0,229,255,0.04); }
+  td.num { color: #64748b; font-size: 13px; font-family: monospace; width: 36px; }
+  td.name { font-weight: 700; font-size: 15px; color: #f1f5f9; }
+  td.pts .badge { background: rgba(0,229,255,0.12); color: #00e5ff; border: 1px solid rgba(0,229,255,0.25); padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  td.link a { display: inline-block; background: #00e5ff; color: #000; font-weight: 700; font-size: 13px; padding: 9px 18px; border-radius: 8px; text-decoration: none; transition: background 0.2s; }
+  td.link a:hover { background: #33eaff; }
+  @media(max-width:500px){
+    th:nth-child(1), td.num { display: none; }
+    td { padding: 12px 14px; }
+    td.name { font-size: 14px; }
+    td.link a { font-size: 12px; padding: 8px 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📍 Rutas del día</h1>
+  <p>Generado: ${fecha} &nbsp;·&nbsp; ${technicianData.length} técnicos</p>
+</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>Técnico</th><th>Puntos</th><th>Mapa</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+</div>
+</body>
+</html>`;
+
+  zip.file('index.html', indexHtml);
+
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `rutas_tecnicos_${new Date().toISOString().slice(0,10)}.zip`;
+  a.click();
+  showToast('✓ ZIP descargado — sube el ZIP a Google Drive o similar');
+}
+
+function exportHTML() { exportZip(); }
+
+function dl(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click();
+}
+
+// ─── RESET ─────────────────────────────────────
+function resetAll() {
+  uploadedFiles = []; technicianData = []; generatedMaps = {};
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('mappingPanel').classList.remove('visible');
+  document.getElementById('fileInput').value = '';
+  showToast('↺ Listo para nuevo lote');
+}
+
+// ─── TOAST ─────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
