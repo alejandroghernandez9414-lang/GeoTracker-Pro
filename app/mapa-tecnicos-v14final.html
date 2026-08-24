@@ -1024,7 +1024,7 @@ pts.forEach((p,i) => {
   else if (p.tipoOp === 'DC00') tipoHtml = \`<div style="display:inline-block;background:rgba(255,50,50,0.15);color:#ff6b6b;border:1px solid rgba(255,50,50,0.35);border-radius:4px;font-size:10px;font-weight:700;padding:1px 8px;font-family:monospace;margin-bottom:5px">✂ SUSPENSIÓN</div>\`;
   else if (p.tipoOp === 'ZVCL') tipoHtml = \`<div style="display:inline-block;background:rgba(255,200,0,0.15);color:#fbbf24;border:1px solid rgba(255,200,0,0.35);border-radius:4px;font-size:10px;font-weight:700;padding:1px 8px;font-family:monospace;margin-bottom:5px">⚠ ZVCL</div>\`;
   let fotoPopupHtml = '';
-  if (p.fotoUrl && p.tipoOp === 'RC00') {
+  if (p.fotoUrl) {
     fotoPopupHtml = \`<div style="margin:6px 0;border-radius:6px;overflow:hidden;border:1px solid rgba(255,107,53,0.4)">
       <div style="background:rgba(255,107,53,0.2);color:#ff9a6c;font-size:10px;font-weight:700;padding:3px 8px;font-family:monospace">📸 FOTO FACHADA</div>
       <img src="\${p.fotoUrl}" style="width:100%;object-fit:contain;background:#000;display:block;cursor:pointer" onclick="openLightbox('\${p.fotoUrl}','\${label.replace(/'/g,'')}')" alt="FotoFachada">
@@ -1221,8 +1221,8 @@ const kmlIconMap = {
   'hospital':   { emoji: '🏥', bg: '#10b981', color: '#fff' },
   'clinica':    { emoji: '🏥', bg: '#10b981', color: '#fff' },
   'ips':        { emoji: '🏥', bg: '#10b981', color: '#fff' },
-  'mediport':   { emoji: '🏥', bg: '#10b981', color: '#fff' },  
-  'medicarte':  { emoji: '🏥', bg: '#10b981', color: '#fff' },  
+  'mediport':   { emoji: '🏥', bg: '#10b981', color: '#fff' },
+  'medicarte':  { emoji: '🏥', bg: '#10b981', color: '#fff' },  // ← MEDICARTE CENTUM
   'movilidad':  { emoji: '🚦', bg: '#3b82f6', color: '#fff' },
   'default':    { emoji: '📌', bg: '#a78bfa', color: '#000' }
 };
